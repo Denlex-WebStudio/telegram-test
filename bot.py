@@ -1,11 +1,16 @@
 import logging
 import json
 import asyncio
+import os
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ConversationHandler, filters, ContextTypes
 from config import BOT_TOKEN, CLINIC_INFO, SPECIALIZATIONS, DOCTORS, AVAILABLE_TIMES, ADMIN_ID
 from excel_manager import ExcelManager
+try:
+    from sheets_manager import SheetsManager
+except Exception:
+    SheetsManager = None
 
 # Настройка логирования
 logging.basicConfig(
@@ -18,8 +23,11 @@ logger = logging.getLogger(__name__)
 CHOOSING_SPECIALIZATION, CHOOSING_DOCTOR, CHOOSING_DATE, CHOOSING_TIME, ENTERING_NAME, ENTERING_PHONE = range(6)
 REVIEW_RATING, REVIEW_TEXT = range(2)
 
-# Инициализация Excel Manager (учитывает DATA_DIR/EXCEL_FILE из окружения)
-excel_manager = ExcelManager()
+# Инициализация хранилища: Google Sheets при наличии конфигурации, иначе Excel
+if SheetsManager is not None and os.getenv('GOOGLE_SHEETS_ID'):
+    excel_manager = SheetsManager()
+else:
+    excel_manager = ExcelManager()
 
 # Словарь для хранения данных пользователей
 user_data = {}
@@ -873,7 +881,19 @@ def main() -> None:
             await update.message.reply_text("Команда доступна только администратору")
             return
         try:
-            await update.message.reply_document(document=open(excel_manager.filename, 'rb'))
+            # Excel-файл: отправляем документ
+            if hasattr(excel_manager, 'filename') and excel_manager.filename and os.path.exists(getattr(excel_manager, 'filename', '')):
+                await update.message.reply_document(document=open(excel_manager.filename, 'rb'))
+                return
+            # Google Sheets: отправляем ссылку на таблицу
+            if hasattr(excel_manager, 'spreadsheet'):
+                sheet_url = getattr(excel_manager.spreadsheet, 'url', None)
+                if not sheet_url and hasattr(excel_manager, 'spreadsheet_id'):
+                    sheet_url = f"https://docs.google.com/spreadsheets/d/{excel_manager.spreadsheet_id}"
+                if sheet_url:
+                    await update.message.reply_text(f"Ссылка на таблицу: {sheet_url}")
+                    return
+            await update.message.reply_text("Не удалось найти источник данных для экспорта.")
         except Exception as e:
             await update.message.reply_text(f"Не удалось отправить файл: {e}")
     
