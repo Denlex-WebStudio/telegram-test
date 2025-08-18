@@ -860,6 +860,10 @@ async def cancel_appointment_by_index(update: Update, context: ContextTypes.DEFA
 def main() -> None:
     """Запуск бота"""
     # Создаем приложение
+    if not BOT_TOKEN:
+        raise RuntimeError(
+            "BOT_TOKEN is not set. Create a .env file with BOT_TOKEN=your_token or set the environment variable."
+        )
     application = Application.builder().token(BOT_TOKEN).build()
     
     # Обработчики команд

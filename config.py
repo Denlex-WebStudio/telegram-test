@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Токен бота
-BOT_TOKEN = "8317877049:AAER1edbYM0eLNnsJmQiiOz0ssInDg_zaTY"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 # Данные медицинского центра
 CLINIC_INFO = {
