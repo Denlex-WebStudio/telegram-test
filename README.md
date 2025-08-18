@@ -31,6 +31,10 @@ pip install -r requirements.txt
 
 ```env
 BOT_TOKEN=ваш_телеграм_токен
+# Необязательно: путь для хранения Excel (по умолчанию — текущая папка)
+# DATA_DIR=/data
+# Или полный путь к файлу:
+# EXCEL_FILE=/data/clinic_data.xlsx
 ```
 
 Файл `.env` уже добавлен в `.gitignore` и не будет загружен в репозиторий.
@@ -70,6 +74,18 @@ DOCTORS = {
 ```bash
 python bot.py
 ```
+## Хранение данных на Render (постоянно)
+
+По умолчанию `clinic_data.xlsx` создаётся в файловой системе контейнера и исчезает при рестарте/ redeploy. Чтобы данные сохранялись:
+
+1. Включите постоянный диск в сервисе:
+   - Settings → Disks → Add Disk
+   - Mount Path: `/data`, Size: 1 GB (или больше)
+2. В Environment добавьте переменную `DATA_DIR=/data` (или `EXCEL_FILE=/data/clinic_data.xlsx`).
+3. Перезапустите сервис. Файл будет доступен по пути `/data/clinic_data.xlsx`.
+
+Для выгрузки файла администратором отправьте боту команду `/export` (см. `ADMIN_ID` в `config.py`).
+
 
 При первом запуске автоматически создастся файл `clinic_data.xlsx` с нужными листами и заголовками.
 

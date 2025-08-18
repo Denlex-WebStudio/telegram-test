@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ConversationHandler, filters, ContextTypes
-from config import BOT_TOKEN, CLINIC_INFO, SPECIALIZATIONS, DOCTORS, AVAILABLE_TIMES
+from config import BOT_TOKEN, CLINIC_INFO, SPECIALIZATIONS, DOCTORS, AVAILABLE_TIMES, ADMIN_ID
 from excel_manager import ExcelManager
 
 # Настройка логирования
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 CHOOSING_SPECIALIZATION, CHOOSING_DOCTOR, CHOOSING_DATE, CHOOSING_TIME, ENTERING_NAME, ENTERING_PHONE = range(6)
 REVIEW_RATING, REVIEW_TEXT = range(2)
 
-# Инициализация Excel Manager
+# Инициализация Excel Manager (учитывает DATA_DIR/EXCEL_FILE из окружения)
 excel_manager = ExcelManager()
 
 # Словарь для хранения данных пользователей
@@ -865,9 +865,21 @@ def main() -> None:
             "BOT_TOKEN is not set. Create a .env file with BOT_TOKEN=your_token or set the environment variable."
         )
     application = Application.builder().token(BOT_TOKEN).build()
+
+    # Команда для администратора: отправить текущий Excel-файл
+    async def export_excel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        admin_id = ADMIN_ID
+        if admin_id and str(update.effective_user.id) != str(admin_id):
+            await update.message.reply_text("Команда доступна только администратору")
+            return
+        try:
+            await update.message.reply_document(document=open(excel_manager.filename, 'rb'))
+        except Exception as e:
+            await update.message.reply_text(f"Не удалось отправить файл: {e}")
     
     # Обработчики команд
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("export", export_excel))
     
     # ConversationHandler для записи на прием
     appointment_conv_handler = ConversationHandler(

@@ -14,7 +14,16 @@ except Exception:
 
 class ExcelManager:
     def __init__(self, filename="clinic_data.xlsx"):
-        self.filename = filename
+        env_excel_file = os.getenv("EXCEL_FILE")
+        if env_excel_file and isinstance(env_excel_file, str) and env_excel_file.strip():
+            self.filename = env_excel_file
+        else:
+            data_dir = os.getenv("DATA_DIR", ".")
+            try:
+                os.makedirs(data_dir, exist_ok=True)
+            except Exception:
+                pass
+            self.filename = os.path.join(data_dir, filename)
         self.setup_excel_file()
         
     def setup_excel_file(self):

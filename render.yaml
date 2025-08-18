@@ -8,6 +8,12 @@ services:
     envVars:
       - key: BOT_TOKEN
         sync: false
+      - key: DATA_DIR
+        value: /data
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
 
 
 
