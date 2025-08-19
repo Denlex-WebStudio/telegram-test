@@ -4,20 +4,16 @@ services:
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: python bot.py
-    plan: free
     envVars:
       - key: BOT_TOKEN
         sync: false
-      - key: DATA_DIR
-        value: /data
       - key: GOOGLE_SHEETS_ID
         sync: false
       - key: GOOGLE_SERVICE_ACCOUNT_JSON
         sync: false
-    disk:
-      name: data
-      mountPath: /data
-      sizeGB: 1
+      - key: ADMIN_ID
+        sync: false
+      # Переменные для Google Sheets
 
 
 

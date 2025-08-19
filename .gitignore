@@ -15,6 +15,7 @@ venv/
 # Google API credentials
 credentials.json
 token.pickle
+service-account.json
 
 # Python
 __pycache__/

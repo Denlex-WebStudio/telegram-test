@@ -5,12 +5,8 @@ import os
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ConversationHandler, filters, ContextTypes
+from sheets_manager import GoogleSheetsManager
 from config import BOT_TOKEN, CLINIC_INFO, SPECIALIZATIONS, DOCTORS, AVAILABLE_TIMES, ADMIN_ID
-from excel_manager import ExcelManager
-try:
-    from sheets_manager import SheetsManager
-except Exception:
-    SheetsManager = None
 
 # Настройка логирования
 logging.basicConfig(
@@ -23,17 +19,14 @@ logger = logging.getLogger(__name__)
 CHOOSING_SPECIALIZATION, CHOOSING_DOCTOR, CHOOSING_DATE, CHOOSING_TIME, ENTERING_NAME, ENTERING_PHONE = range(6)
 REVIEW_RATING, REVIEW_TEXT = range(2)
 
-# Инициализация хранилища: Google Sheets при наличии конфигурации, иначе Excel
-if SheetsManager is not None and os.getenv('GOOGLE_SHEETS_ID'):
-    excel_manager = SheetsManager()
-else:
-    excel_manager = ExcelManager()
+# Инициализация менеджера Google Sheets
+sheets_manager = GoogleSheetsManager()
 
 # Словарь для хранения данных пользователей
 user_data = {}
-excel_sync_started = False
+sheets_sync_started = False
 
-# Лёгкая синхронизация Excel без сторонних библиотек (через встроенный планировщик)
+# Лёгкая синхронизация данных Google Sheets (через встроенный планировщик)
 known_active_appointment_keys = set()
 known_active_review_keys = set()
 
@@ -42,7 +35,7 @@ my_appts_cache = {}
 my_appts_view = {}
 
 def build_my_appts_text_and_keyboard(user_id: int):
-    appointments = excel_manager.get_appointments_by_user(user_id)
+    appointments = sheets_manager.get_appointments_by_user(user_id)
     keyboard_rows = []
     if not appointments:
         text = "У вас пока нет записей."
@@ -128,7 +121,7 @@ def _normalize_created_str(value):
         return str(value)
 
 def build_active_appointment_keys():
-    rows = excel_manager.get_appointments()
+    rows = sheets_manager.get_appointments()
     keys = set()
     for row in rows:
         try:
@@ -148,7 +141,7 @@ def build_active_appointment_keys():
     return keys
 
 def build_active_review_keys():
-    rows = excel_manager.get_reviews()
+    rows = sheets_manager.get_reviews()
     keys = set()
     for row in rows:
         try:
@@ -166,8 +159,8 @@ def build_active_review_keys():
             continue
     return keys
 
-async def sync_excel_changes(context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Периодическая сверка Excel: уведомляем пользователя об удалённых/отменённых записях и скрытых/удалённых отзывах."""
+async def sync_data_changes(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Периодическая сверка данных: уведомляем пользователя об удалённых/отменённых записях и скрытых/удалённых отзывах."""
     global known_active_appointment_keys, known_active_review_keys
     try:
         current_appts = build_active_appointment_keys()
@@ -210,11 +203,11 @@ async def sync_excel_changes(context: ContextTypes.DEFAULT_TYPE) -> None:
         known_active_appointment_keys = current_appts
         known_active_review_keys = current_reviews
     except Exception:
-        # Не падаем, если файл временно занят/нечитаем
+        # Не падаем, если таблица временно недоступна
         pass
 
-async def background_excel_sync(application: Application) -> None:
-    """Фоновая синхронизация без JobQueue: цикл с asyncio.sleep."""
+async def background_data_sync(application: Application) -> None:
+    """Фоновая синхронизация данных без JobQueue: цикл с asyncio.sleep."""
     global known_active_appointment_keys, known_active_review_keys
     # Инициализируем снимок
     try:
@@ -227,7 +220,7 @@ async def background_excel_sync(application: Application) -> None:
         try:
             # Пробуем применить отложенные операции, если файл разблокирован
             try:
-                excel_manager.flush_pending_ops()
+                sheets_manager.flush_pending_ops()
             except Exception:
                 pass
             current_appts = build_active_appointment_keys()
@@ -268,11 +261,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /start"""
     user = update.effective_user
     # Гарантируем запуск фоновой синхронизации после старта (когда уже есть event loop)
-    global excel_sync_started
-    if not excel_sync_started:
+    global sheets_sync_started
+    if not sheets_sync_started:
         try:
-            context.application.create_task(background_excel_sync(context.application))
-            excel_sync_started = True
+            context.application.create_task(background_data_sync(context.application))
+            sheets_sync_started = True
         except Exception:
             pass
     welcome_text = f"Здравствуйте! Добро пожаловать в {CLINIC_INFO['name']}. Чем могу помочь?"
@@ -295,11 +288,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     query = update.callback_query
     await query.answer()
     # Резервный запуск фоновой синхронизации, если /start не нажимали
-    global excel_sync_started
-    if not excel_sync_started:
+    global sheets_sync_started
+    if not sheets_sync_started:
         try:
-            context.application.create_task(background_excel_sync(context.application))
-            excel_sync_started = True
+            context.application.create_task(background_data_sync(context.application))
+            sheets_sync_started = True
         except Exception:
             pass
     
@@ -458,7 +451,7 @@ async def show_available_times(update: Update, context: ContextTypes.DEFAULT_TYP
     doctor_name = user_data.get(user_id, {}).get('doctor', {}).get('name') if user_id in user_data else None
     booked = set()
     if doctor_name:
-        booked = excel_manager.get_booked_times(doctor_name, date)
+        booked = sheets_manager.get_booked_times(doctor_name, date)
 
     available_slots = [t for t in AVAILABLE_TIMES if t not in booked]
 
@@ -522,8 +515,8 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         name = data['name']
         phone = data['phone']
         
-        # Сохраняем в Excel файл
-        success = excel_manager.add_appointment(
+        # Сохраняем данные
+        success = sheets_manager.add_appointment(
             date, time, name, phone, doctor['name'], specialization, user_id
         )
         
@@ -614,8 +607,8 @@ async def handle_consultation_message(update: Update, context: ContextTypes.DEFA
         user = update.effective_user
         question = update.message.text
         
-        # Сохраняем в Excel файл
-        success = excel_manager.add_consultation(question, user.id)
+        # Сохраняем данные
+        success = sheets_manager.add_consultation(question, user.id)
         
         if success:
             await update.message.reply_text(
@@ -649,7 +642,7 @@ async def show_reviews_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def show_my_appointments(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показать записи текущего пользователя"""
     user = update.effective_user
-    appointments = excel_manager.get_appointments_by_user(user.id)
+    appointments = sheets_manager.get_appointments_by_user(user.id)
 
     keyboard_rows = []
     if not appointments:
@@ -738,8 +731,8 @@ async def handle_review_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
     review_text = update.message.text
     rating = context.user_data.get('rating', 5)
     
-    # Сохраняем в Excel файл
-    success = excel_manager.add_review(
+    # Сохраняем данные
+    success = sheets_manager.add_review(
         f"{user.first_name} {user.last_name or ''}".strip(),
         rating,
         review_text,
@@ -765,7 +758,7 @@ async def handle_review_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def show_reviews(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показать существующие отзывы"""
-    reviews = excel_manager.get_reviews()
+    reviews = sheets_manager.get_reviews()
     
     if not reviews:
         text = "Пока нет отзывов. Будьте первым!"
@@ -808,8 +801,8 @@ async def subscribe_news(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     """Подписка на новости"""
     user = update.effective_user
     
-    # Добавляем в Excel файл
-    success = excel_manager.add_subscriber(user.id, f"{user.first_name} {user.last_name or ''}".strip())
+    # Добавляем данные
+    success = sheets_manager.add_subscriber(user.id, f"{user.first_name} {user.last_name or ''}".strip())
     
     if success:
         await update.callback_query.edit_message_text(
@@ -851,8 +844,8 @@ async def cancel_appointment_by_index(update: Update, context: ContextTypes.DEFA
         await update.callback_query.answer("Не удалось проверить время записи", show_alert=True)
         return
 
-    # Удаляем запись из Excel
-    ok = excel_manager.delete_appointment(update.effective_user.id, str(date), str(time), str(doctor), str(created_at))
+    # Удаляем запись
+    ok = sheets_manager.delete_appointment(update.effective_user.id, str(date), str(time), str(doctor), str(created_at))
     if ok:
         await update.callback_query.answer("Запись отменена", show_alert=True)
         # Обновляем список и экран
@@ -874,32 +867,28 @@ def main() -> None:
         )
     application = Application.builder().token(BOT_TOKEN).build()
 
-    # Команда для администратора: отправить текущий Excel-файл
-    async def export_excel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Команда для администратора: экспорт данных
+    async def export_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         admin_id = ADMIN_ID
         if admin_id and str(update.effective_user.id) != str(admin_id):
             await update.message.reply_text("Команда доступна только администратору")
             return
+        
         try:
-            # Excel-файл: отправляем документ
-            if hasattr(excel_manager, 'filename') and excel_manager.filename and os.path.exists(getattr(excel_manager, 'filename', '')):
-                await update.message.reply_document(document=open(excel_manager.filename, 'rb'))
-                return
-            # Google Sheets: отправляем ссылку на таблицу
-            if hasattr(excel_manager, 'spreadsheet'):
-                sheet_url = getattr(excel_manager.spreadsheet, 'url', None)
-                if not sheet_url and hasattr(excel_manager, 'spreadsheet_id'):
-                    sheet_url = f"https://docs.google.com/spreadsheets/d/{excel_manager.spreadsheet_id}"
-                if sheet_url:
-                    await update.message.reply_text(f"Ссылка на таблицу: {sheet_url}")
-                    return
-            await update.message.reply_text("Не удалось найти источник данных для экспорта.")
+            # Отправляем ссылку на Google Sheets
+            spreadsheet_url = sheets_manager.get_spreadsheet_url()
+            if spreadsheet_url:
+                await update.message.reply_text(
+                    f"📊 Данные доступны в Google таблице:\n{spreadsheet_url}"
+                )
+            else:
+                await update.message.reply_text("❌ Не удалось получить ссылку на Google таблицу")
         except Exception as e:
-            await update.message.reply_text(f"Не удалось отправить файл: {e}")
+            await update.message.reply_text(f"❌ Ошибка экспорта: {e}")
     
     # Обработчики команд
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("export", export_excel))
+    application.add_handler(CommandHandler("export", export_data))
     
     # ConversationHandler для записи на прием
     appointment_conv_handler = ConversationHandler(
@@ -929,7 +918,7 @@ def main() -> None:
     # Обработчик сообщений для консультаций
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_consultation_message))
     
-    # Фоновую синхронизацию запускаем при первом пользовательском обновлении (см. start/button_handler)
+    # Фоновую синхронизацию данных запускаем при первом пользовательском обновлении (см. start/button_handler)
 
     # Запускаем бота
     print("Бот запущен...")

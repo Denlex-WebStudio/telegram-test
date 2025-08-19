@@ -1,10 +1,45 @@
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv, dotenv_values
 
-load_dotenv()
+# Явно ищем .env, начиная с текущей рабочей директории, чтобы надёжно подхватывать переменные
+dotenv_path = os.getenv("DOTENV_PATH") or find_dotenv(usecwd=True)
+if dotenv_path:
+    # Пытаемся загрузить .env из найденного пути (учитываем возможный BOM)
+    load_dotenv(dotenv_path=dotenv_path, encoding="utf-8-sig")
+else:
+    # Фолбэк на стандартный поиск в случае, если find_dotenv не нашёл файл
+    load_dotenv(encoding="utf-8-sig")
 
 # Токен бота
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+# Дополнительный устойчивый фолбэк: вручную парсим .env, если по какой-то причине переменные не подхватились
+if not BOT_TOKEN and dotenv_path and os.path.exists(dotenv_path):
+    try:
+        with open(dotenv_path, "r", encoding="utf-8-sig") as f:
+            for raw_line in f.readlines():
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip().lstrip("\ufeff")
+                value = value.strip().strip('"').strip("'")
+                if key and value and key not in os.environ:
+                    os.environ[key] = value
+        BOT_TOKEN = os.getenv("BOT_TOKEN")
+    except Exception:
+        # Тихо игнорируем — основной путь загрузки уже был попытался
+        pass
+
+# Финальный фолбэк: используем парсер dotenv_values (без установки переменных окружения)
+if not BOT_TOKEN and dotenv_path and os.path.exists(dotenv_path):
+    try:
+        values = dotenv_values(dotenv_path)
+        BOT_TOKEN = values.get("BOT_TOKEN", BOT_TOKEN)
+    except Exception:
+        pass
 
 # Данные медицинского центра
 CLINIC_INFO = {
@@ -82,4 +117,7 @@ AVAILABLE_TIMES = [
 # ID администратора для уведомлений
 ADMIN_ID = None  # Будет установлен при первом запуске
 
-# Настройки Google больше не используются. Данные хранятся в Excel (`clinic_data.xlsx`).
+# Настройки Google Sheets
+# GOOGLE_SHEETS_ID - ID таблицы Google Sheets
+# GOOGLE_SERVICE_ACCOUNT_JSON - JSON ключ сервисного аккаунта в одну строку (рекомендуется)
+# GOOGLE_SERVICE_ACCOUNT_JSON - путь к JSON файлу сервисного аккаунта (для локальной разработки)
