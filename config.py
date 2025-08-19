@@ -82,4 +82,7 @@ AVAILABLE_TIMES = [
 # ID администратора для уведомлений
 ADMIN_ID = None  # Будет установлен при первом запуске
 
-# Настройки Google больше не используются. Данные хранятся в Excel (`clinic_data.xlsx`).
+# Настройки Google Sheets
+# GOOGLE_SHEETS_ID - ID таблицы Google Sheets
+# GOOGLE_SERVICE_ACCOUNT_JSON - JSON ключ сервисного аккаунта в одну строку
+# GOOGLE_APPLICATION_CREDENTIALS - путь к JSON файлу сервисного аккаунта
