@@ -98,13 +98,13 @@ class GoogleSheetsManager:
                     return None
             
             # Вариант 2: Путь к JSON файлу
-            credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+            credentials_path = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
             if credentials_path and os.path.exists(credentials_path):
                 logger.info(f"Загрузка учетных данных из файла: {credentials_path}")
                 creds = Credentials.from_service_account_file(credentials_path, scopes=GOOGLE_SCOPES)
                 return creds
             elif credentials_path:
-                logger.error(f"GOOGLE_APPLICATION_CREDENTIALS указывает на несуществующий файл: {credentials_path}")
+                logger.error(f"GOOGLE_SERVICE_ACCOUNT_JSON указывает на несуществующий файл: {credentials_path}")
                 return None
 
             # Вариант 3: Автоматическое определение (для локальной разработки)

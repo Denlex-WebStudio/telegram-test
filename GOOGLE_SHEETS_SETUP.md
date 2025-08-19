@@ -82,16 +82,17 @@ GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"your-project
 ADMIN_ID=123456789
 ```
 
-#### Вариант B: Через файл сервисного аккаунта
+#### Вариант B: Через файл сервисного аккаунта (не рекомендуется для продакшена)
 
-1. Поместите скачанный JSON файл в корень проекта
+1. Поместите скачанный JSON файл в корень проекта и добавьте его в `.gitignore`
 2. Переименуйте его в `service-account.json`
-3. В `.env` файле укажите:
+3. Альтернативно к переменной `GOOGLE_SERVICE_ACCOUNT_JSON` можно использовать путь к файлу:
 
 ```env
 BOT_TOKEN=your_bot_token_here
 GOOGLE_SHEETS_ID=1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
-GOOGLE_APPLICATION_CREDENTIALS=./service-account.json
+# В продакшене используйте GOOGLE_SERVICE_ACCOUNT_JSON. Этот вариант — только для локальной разработки.
+GOOGLE_SERVICE_ACCOUNT_JSON=./service-account.json
 ADMIN_ID=123456789
 ```
 

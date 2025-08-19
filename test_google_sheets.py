@@ -18,11 +18,11 @@ def test_google_sheets():
     # Проверяем переменные окружения
     sheets_id = os.getenv("GOOGLE_SHEETS_ID")
     service_account = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
-    credentials_file = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    credentials_file = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
     
     print(f"📊 GOOGLE_SHEETS_ID: {'✅' if sheets_id else '❌'}")
     print(f"🔑 GOOGLE_SERVICE_ACCOUNT_JSON: {'✅' if service_account else '❌'}")
-    print(f"📁 GOOGLE_APPLICATION_CREDENTIALS: {'✅' if credentials_file else '❌'}")
+    print(f"📁 GOOGLE_SERVICE_ACCOUNT_JSON: {'✅' if credentials_file else '❌'}")
     
     if not sheets_id:
         print("❌ GOOGLE_SHEETS_ID не установлен")
